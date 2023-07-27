@@ -5,9 +5,10 @@ from transformers import BertTokenizer, BertModel
 
 class NRMS(nn.Module):
     
-    def __init__(self, titles):
+    def __init__(self, titles, BATCH_SIZE, device):
         super(NRMS, self).__init__()
-        self.device = torch.device("cuda")
+        self.batch_size = BATCH_SIZE
+        self.device = torch.device(device)
         self.titles = titles
         self.bert_model = self.init_bert(self.device)
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
@@ -22,11 +23,11 @@ class NRMS(nn.Module):
         return bert_model
         
     def embed_titles(self, titles):
-        batch_size = 1000
+        
         title_embds = torch.empty((0, self.bert_model.config.hidden_size)).to(self.device)
 
-        for i in range(0, len(titles), batch_size):
-            batch_titles = titles[i:i + batch_size]
+        for i in range(0, len(titles), self.batch_size):
+            batch_titles = titles[i:i + self.batch_size]
             encoded_inputs = self.tokenizer(batch_titles, padding=True, truncation=True, return_tensors="pt").to(self.device)
 
             with torch.no_grad():
