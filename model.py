@@ -1,40 +1,58 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torchtext.vocab import Vocab
+from torchtext.data.utils import get_tokenizer
+
 
 from transformers import BertTokenizer, BertModel
 
+from collections import Counter
+
+from bert import Bert
+
+
 class NRMS(nn.Module):
     
-    def __init__(self, titles, BATCH_SIZE, device):
+    def __init__(self, device, titles):
         super(NRMS, self).__init__()
-        self.batch_size = BATCH_SIZE
-        self.device = torch.device(device)
+        self.device = device
         self.titles = titles
-        self.bert_model = self.init_bert(self.device)
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        
+        bert = Bert(device, titles)
+        
+        self.titles_embbedings = bert.embbed_titles()
+        self.mha = nn.MultiheadAttention(768, 2, dropout=0.1)
+        
+        self.additive_attn = AdditiveAttention(14, 768)
+    
     
     def forward(self):
-        return self.embed_titles(self.titles)
+        mha_outs = []
+        att_outs = []
+        for title in self.titles_embbedings:
+            title_output, weights = self.mha(title, title, title)
+            mha_outs.append(title_output)
+            
+            title_repr, _ = self.additive_attn(title_output)
+#             torch.sigmoid(title_repr)
+            att_outs.append(title_repr)
+        return mha_outs, att_outs
+
+
     
-    @staticmethod
-    def init_bert(device):
-        bert_model = BertModel.from_pretrained("bert-base-uncased")
-        bert_model.to(device)
-        return bert_model
-        
-    def embed_titles(self, titles):
-        
-        title_embds = torch.empty((0, self.bert_model.config.hidden_size)).to(self.device)
+class AdditiveAttention(torch.nn.Module):
+    def __init__(self, in_dim=100, v_size=768):
+        super().__init__()
 
-        for i in range(0, len(titles), self.batch_size):
-            batch_titles = titles[i:i + self.batch_size]
-            encoded_inputs = self.tokenizer(batch_titles, padding=True, truncation=True, return_tensors="pt").to(self.device)
+        self.in_dim = in_dim
+        self.v_size = v_size
+        self.proj = nn.Sequential(nn.Linear(self.in_dim, self.v_size), nn.Tanh())
+        self.proj_v = nn.Linear(self.v_size, 1)
 
-            with torch.no_grad():
-                model_outputs = self.bert_model(**encoded_inputs)
-
-            batch_embds = model_outputs.last_hidden_state 
-            batch_embds = batch_embds.mean(dim=1)
-            title_embds = torch.cat((title_embds, batch_embds), dim=0)
         
-        return title_embds
+    def forward(self, context):
+        weights = self.proj_v(self.proj(torch.transpose(context, 0, 1))).squeeze(-1)
+        weights = torch.softmax(weights, dim=-1) 
+        weights = weights.unsqueeze(-1)  
+        return torch.mm(context, weights), weights  
