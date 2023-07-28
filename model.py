@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchtext.vocab import Vocab
-from torchtext.data.utils import get_tokenizer
+# from torchtext.vocab import Vocab
+# from torchtext.data.utils import get_tokenizer
 
 
 from transformers import BertTokenizer, BertModel
@@ -14,17 +14,17 @@ from bert import Bert
 
 class NRMS(nn.Module):
     
-    def __init__(self, device, titles):
+    def __init__(self, hparams,titles):
         super(NRMS, self).__init__()
-        self.device = device
+        self.device = hparams['device']
         self.titles = titles
-        
-        bert = Bert(device, titles)
+
+        bert = Bert(self.device, titles, hparams['max_title_len'])
         
         self.titles_embbedings = bert.embbed_titles()
         self.mha = nn.MultiheadAttention(768, 2, dropout=0.1)
         
-        self.additive_attn = AdditiveAttention(14, 768)
+        self.additive_attn = AdditiveAttention(hparams['max_title_len'], 768)
     
     
     def forward(self):
@@ -42,7 +42,7 @@ class NRMS(nn.Module):
 
     
 class AdditiveAttention(torch.nn.Module):
-    def __init__(self, in_dim=100, v_size=768):
+    def __init__(self, in_dim, v_size):
         super().__init__()
 
         self.in_dim = in_dim
