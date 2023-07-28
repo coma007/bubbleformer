@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from config import hparams
 # from torchtext.vocab import Vocab
 # from torchtext.data.utils import get_tokenizer
 
@@ -16,8 +17,9 @@ class NRMS(nn.Module):
     
     def __init__(self, hparams,titles):
         super(NRMS, self).__init__()
-        self.device = hparams['device']
+        
         self.titles = titles
+        self.device = hparams['device']
 
         bert = Bert(self.device, titles, hparams['max_title_len'])
         
