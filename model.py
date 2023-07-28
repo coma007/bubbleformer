@@ -15,31 +15,30 @@ from bert import Bert
 
 class NRMS(nn.Module):
     
-    def __init__(self, hparams,titles):
+    def __init__(self, hparams):
         super(NRMS, self).__init__()
         
-        self.titles = titles
         self.device = hparams['device']
 
-        bert = Bert(self.device, titles, hparams['max_title_len'])
-        
-        self.titles_embbedings = bert.embbed_titles()
         self.mha = nn.MultiheadAttention(768, 2, dropout=0.1)
         
         self.additive_attn = AdditiveAttention(hparams['max_title_len'], 768)
     
     
-    def forward(self):
+    def forward(self, context):
         mha_outs = []
         att_outs = []
-        for title in self.titles_embbedings:
-            title_output, weights = self.mha(title, title, title)
-            mha_outs.append(title_output)
+        word_repr = []
+        for title in context:
+            mha_out, _ = self.mha(title, title, title)
+            mha_outs.append(mha_out)
+            add_out, _ = self.additive_attn(mha_out)
+            att_outs.append(add_out)
             
-            title_repr, _ = self.additive_attn(title_output)
-#             torch.sigmoid(title_repr)
-            att_outs.append(title_repr)
-        return mha_outs, att_outs
+            word_repr.append(torch.mm(torch.transpose(add_out, 0, 1), mha_out))
+        
+        return torch.sigmoid(word_repr)
+#         return mha_outs, att_outs, word_repr
 
 
     
