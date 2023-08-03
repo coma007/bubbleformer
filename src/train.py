@@ -6,20 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import time
 import numpy as np
-from config import model_name
 from tqdm import tqdm
 import os
 from pathlib import Path
 from evaluate import evaluate
 import importlib
 import datetime
+from config import Config
+from model.NRMS import NRMS
 
-try:
-    Model = getattr(importlib.import_module(f"model.{model_name}"), model_name)
-    config = getattr(importlib.import_module('config'), f"{model_name}Config")
-except AttributeError:
-    print(f"{model_name} not included!")
-    exit()
+config = Config()
+Model = NRMS
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -67,7 +64,7 @@ def latest_checkpoint(directory):
 def train():
     writer = SummaryWriter(
         log_dir=
-        f"./runs/{model_name}/{datetime.datetime.now().replace(microsecond=0).isoformat()}{'-' + os.environ['REMARK'] if 'REMARK' in os.environ else ''}"
+        f"./runs/NRMS/{datetime.datetime.now().replace(microsecond=0).isoformat()}{'-' + os.environ['REMARK'] if 'REMARK' in os.environ else ''}"
     )
 
     if not os.path.exists('checkpoint'):
@@ -79,36 +76,9 @@ def train():
     except FileNotFoundError:
         pretrained_word_embedding = None
 
-    if model_name == 'DKN':
-        try:
-            pretrained_entity_embedding = torch.from_numpy(
-                np.load(
-                    'datasets/train/pretrained_entity_embedding.npy')).float()
-        except FileNotFoundError:
-            pretrained_entity_embedding = None
+    model = Model(config, pretrained_word_embedding).to(device)
 
-        try:
-            pretrained_context_embedding = torch.from_numpy(
-                np.load(
-                    'datasets/train/pretrained_context_embedding.npy')).float()
-        except FileNotFoundError:
-            pretrained_context_embedding = None
-
-        model = Model(config, pretrained_word_embedding,
-                      pretrained_entity_embedding,
-                      pretrained_context_embedding).to(device)
-    elif model_name == 'Exp1':
-        models = nn.ModuleList([
-            Model(config, pretrained_word_embedding).to(device)
-            for _ in range(config.ensemble_factor)
-        ])
-    else:
-        model = Model(config, pretrained_word_embedding).to(device)
-
-    if model_name != 'Exp1':
-        print(model)
-    else:
-        print(models[0])
+    print(model)
 
     dataset = BaseDataset('datasets/train/behaviors_parsed.tsv',
                           'datasets/train/news_parsed.tsv')
@@ -122,23 +92,17 @@ def train():
                    num_workers=config.num_workers,
                    drop_last=True,
                    pin_memory=True))
-    if model_name != 'Exp1':
-        criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=config.learning_rate)
-    else:
-        criterion = nn.NLLLoss()
-        optimizers = [
-            torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-            for model in models
-        ]
+    criterion = nn.NLLLoss()
+    optimizers = [
+        torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    ]
     start_time = time.time()
     loss_full = []
     exhaustion_count = 0
     step = 0
     early_stopping = EarlyStopping()
 
-    checkpoint_dir = os.path.join('./checkpoint', model_name)
+    checkpoint_dir = os.path.join('./checkpoint/NRMS')
     Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     checkpoint_path = latest_checkpoint(checkpoint_dir)
@@ -147,16 +111,10 @@ def train():
         checkpoint = torch.load(checkpoint_path)
         early_stopping(checkpoint['early_stop_value'])
         step = checkpoint['step']
-        if model_name != 'Exp1':
-            model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.train()
+        for optimizer in optimizers:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            model.train()
-        else:
-            for model in models:
-                model.load_state_dict(checkpoint['model_state_dict'])
-                model.train()
-            for optimizer in optimizers:
-                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     for i in tqdm(range(
             1,
@@ -179,61 +137,17 @@ def train():
             minibatch = next(dataloader)
 
         step += 1
-        if model_name == 'LSTUR':
-            y_pred = model(minibatch["user"], minibatch["clicked_news_length"],
-                           minibatch["candidate_news"],
-                           minibatch["clicked_news"])
-        elif model_name == 'HiFiArk':
-            y_pred, regularizer_loss = model(minibatch["candidate_news"],
-                                             minibatch["clicked_news"])
-        elif model_name == 'TANR':
-            y_pred, topic_classification_loss = model(
-                minibatch["candidate_news"], minibatch["clicked_news"])
-        elif model_name == 'Exp1':
-            y_preds = [
-                model(minibatch["candidate_news"], minibatch["clicked_news"])
-                for model in models
-            ]
-            y_pred_averaged = torch.stack(
-                [F.softmax(y_pred, dim=1) for y_pred in y_preds],
-                dim=-1).mean(dim=-1)
-            y_pred = torch.log(y_pred_averaged)
-        else:
-            y_pred = model(minibatch["candidate_news"],
-                           minibatch["clicked_news"])
+        y_pred = model(minibatch["candidate_news"], minibatch["clicked_news"])
 
         y = torch.zeros(len(y_pred)).long().to(device)
         loss = criterion(y_pred, y)
 
-        if model_name == 'HiFiArk':
-            if i % 10 == 0:
-                writer.add_scalar('Train/BaseLoss', loss.item(), step)
-                writer.add_scalar('Train/RegularizerLoss',
-                                  regularizer_loss.item(), step)
-                writer.add_scalar('Train/RegularizerBaseRatio',
-                                  regularizer_loss.item() / loss.item(), step)
-            loss += config.regularizer_loss_weight * regularizer_loss
-        elif model_name == 'TANR':
-            if i % 10 == 0:
-                writer.add_scalar('Train/BaseLoss', loss.item(), step)
-                writer.add_scalar('Train/TopicClassificationLoss',
-                                  topic_classification_loss.item(), step)
-                writer.add_scalar(
-                    'Train/TopicBaseRatio',
-                    topic_classification_loss.item() / loss.item(), step)
-            loss += config.topic_classification_loss_weight * topic_classification_loss
         loss_full.append(loss.item())
-        if model_name != 'Exp1':
-            optimizer.zero_grad()
-        else:
-            for optimizer in optimizers:
-                optimizer.zero_grad()
+        for optimizer in optimizers:
+        	optimizer.zero_grad()
         loss.backward()
-        if model_name != 'Exp1':
+        for optimizer in optimizers:
             optimizer.step()
-        else:
-            for optimizer in optimizers:
-                optimizer.step()
 
         if i % 10 == 0:
             writer.add_scalar('Train/Loss', loss.item(), step)
@@ -244,11 +158,11 @@ def train():
             )
 
         if i % config.num_batches_validate == 0:
-            (model if model_name != 'Exp1' else models[0]).eval()
+            model.eval()
             val_auc, val_mrr, val_ndcg5, val_ndcg10 = evaluate(
-                model if model_name != 'Exp1' else models[0], 'datasets/val',
+                model, 'datasets/val',
                 config.num_workers, 200000)
-            (model if model_name != 'Exp1' else models[0]).train()
+            model.train()
             writer.add_scalar('Validation/AUC', val_auc, step)
             writer.add_scalar('Validation/MRR', val_mrr, step)
             writer.add_scalar('Validation/nDCG@5', val_ndcg5, step)
@@ -265,16 +179,14 @@ def train():
                 try:
                     torch.save(
                         {
-                            'model_state_dict': (model if model_name != 'Exp1'
-                                                 else models[0]).state_dict(),
+                            'model_state_dict': (model).state_dict(),
                             'optimizer_state_dict':
-                            (optimizer if model_name != 'Exp1' else
-                             optimizers[0]).state_dict(),
+                            (optimizers[0]).state_dict(),
                             'step':
                             step,
                             'early_stop_value':
                             -val_auc
-                        }, f"./checkpoint/{model_name}/ckpt-{step}.pth")
+                        }, f"./checkpoint/NRMS/ckpt-{step}.pth")
                 except OSError as error:
                     print(f"OS error: {error}")
 
@@ -290,5 +202,5 @@ def time_since(since):
 
 if __name__ == '__main__':
     print('Using device:', device)
-    print(f'Training model {model_name}')
+    print(f'Training NRMS')
     train()

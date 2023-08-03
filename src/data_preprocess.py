@@ -1,4 +1,4 @@
-from config import model_name
+from config import Config
 import pandas as pd
 import swifter
 import json
@@ -15,12 +15,7 @@ import importlib
 import nltk
 nltk.download('punkt')
 
-
-try:
-    config = getattr(importlib.import_module('config'), f"{model_name}Config")
-except AttributeError:
-    print(f"{model_name} not included!")
-    exit()
+config = Config()
 
 
 def parse_behaviors(source, target, user2int_path):
@@ -105,7 +100,7 @@ def parse_news(source, target, category2int_path, word2int_path,
                          names=[
                              'id', 'category', 'subcategory', 'title',
                              'abstract', 'title_entities', 'abstract_entities'
-                         ])  # TODO try to avoid csv.QUOTE_NONE
+                         ]) 
     news.title_entities.fillna('[]', inplace=True)
     news.abstract_entities.fillna('[]', inplace=True)
     news.fillna(' ', inplace=True)

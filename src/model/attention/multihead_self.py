@@ -4,9 +4,6 @@ import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# TODO read
-
-
 class ScaledDotProductAttention(nn.Module):
     def __init__(self, d_k):
         super(ScaledDotProductAttention, self).__init__()

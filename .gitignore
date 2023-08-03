@@ -1,1 +1,4 @@
-MIND*
+datasets/
+runs/
+checkpoint*/
+__pycache__/

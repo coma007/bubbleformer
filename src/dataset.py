@@ -3,15 +3,11 @@ import pandas as pd
 from ast import literal_eval
 from os import path
 import numpy as np
-from config import model_name
+from config import Config
 import importlib
 import torch
 
-try:
-    config = getattr(importlib.import_module('config'), f"{model_name}Config")
-except AttributeError:
-    print(f"{model_name} not included!")
-    exit()
+config = Config()
 
 
 class BaseDataset(Dataset):

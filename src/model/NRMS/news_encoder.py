@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model.general.attention.multihead_self import MultiHeadSelfAttention
-from model.general.attention.additive import AdditiveAttention
+from model.attention.multihead_self import MultiHeadSelfAttention
+from model.attention.additive import AdditiveAttention
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 class NewsEncoder(torch.nn.Module):
     def __init__(self, config, pretrained_word_embedding):

@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 import torch
-from config import model_name
 from torch.utils.data import Dataset, DataLoader
 from os import path
 import sys
@@ -10,13 +9,11 @@ import pandas as pd
 from ast import literal_eval
 import importlib
 from multiprocessing import Pool
+from model.NRMS import NRMS
+from config import Config
 
-try:
-    Model = getattr(importlib.import_module(f"model.{model_name}"), model_name)
-    config = getattr(importlib.import_module('config'), f"{model_name}Config")
-except AttributeError:
-    print(f"{model_name} not included!")
-    exit()
+config = Config()    
+Model = NRMS
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -100,9 +97,7 @@ class UserDataset(Dataset):
             else:
                 user_missed += 1
                 self.behaviors.at[row.Index, 'user'] = 0
-        if model_name == 'LSTUR':
-            print(f'User miss rate: {user_missed/user_total:.4f}')
-
+        
     def __len__(self):
         return len(self.behaviors)
 
@@ -222,12 +217,7 @@ def evaluate(model, directory, num_workers, max_count=sys.maxsize):
                             dim=0) for news_list in minibatch["clicked_news"]
             ],
                                               dim=0).transpose(0, 1)
-            if model_name == 'LSTUR':
-                user_vector = model.get_user_vector(
-                    minibatch['user'], minibatch['clicked_news_length'],
-                    clicked_news_vector)
-            else:
-                user_vector = model.get_user_vector(clicked_news_vector)
+            user_vector = model.get_user_vector(clicked_news_vector)
             for user, vector in zip(user_strings, user_vector):
                 if user not in user2vector:
                     user2vector[user] = vector
@@ -274,12 +264,12 @@ def evaluate(model, directory, num_workers, max_count=sys.maxsize):
 
 if __name__ == '__main__':
     print('Using device:', device)
-    print(f'Evaluating model {model_name}')
+    print(f'Evaluating model NRMS')
     # Don't need to load pretrained word/entity/context embedding
     # since it will be loaded from checkpoint later
     model = Model(config).to(device)
     from train import latest_checkpoint  # Avoid circular imports
-    checkpoint_path = latest_checkpoint(path.join('../checkpoint', model_name))
+    checkpoint_path = latest_checkpoint(path.join('./checkpoint/NRMS'))
     print(checkpoint_path)
     if checkpoint_path is None:
         print('No checkpoint file found!')

@@ -1,7 +1,7 @@
 import torch
 from model.NRMS.news_encoder import NewsEncoder
 from model.NRMS.user_encoder import UserEncoder
-from model.general.click_predictor.dot_product import DotProductClickPredictor
+from model.click_predictor.dot_product import DotProductClickPredictor
 
 
 class NRMS(torch.nn.Module):
