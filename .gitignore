@@ -2,3 +2,4 @@ datasets/
 runs/
 checkpoint*/
 __pycache__/
+venv/
