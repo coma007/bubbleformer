@@ -1,7 +1,7 @@
 ![Header Image](https://github.com/coma007/bubbleformer/blob/main/docs/newspaper-header.png)
 # News Articles Recommendation System - _bubbleformer_
 
-Project for Petnica Seminar in Machine Learning (PSI:ML) 9.
+Project for Practical Seminar in Machine Learning (PSI:ML) 9.
 
 ### Authors & Mentors  
 This project was collaboratively developed by:  
@@ -172,9 +172,9 @@ These references played a crucial role in shaping the concepts, methodologies, a
 
 ## About PSI:ML
 
-This project was undertaken as part of the [Petnica Seminar in Machine Learning (PSI:ML) 9](https://psiml.pfe.rs/). PSI:ML is an intensive educational program organized by [PFE](https://pfe.rs/) that immerses participants in a deep exploration of machine learning concepts, techniques, and applications.
+This project was undertaken as part of the [Practical Seminar in Machine Learning (PSI:ML) 9](https://psiml.pfe.rs/). PSI:ML is an intensive educational program organized by [PFE](https://pfe.rs/) that immerses participants in a deep exploration of machine learning concepts, techniques, and applications.
 
-The Petnica Seminar in Machine Learning (PSIML) serves as a platform for students to delve into the intricate world of machine learning, fostering an environment of collaborative learning and experimentation. The results of this project reflect the dedication and expertise cultivated through the PSIML experience.
+The Practical Seminar in Machine Learning (PSIML) serves as a platform for students to delve into the intricate world of machine learning, fostering an environment of collaborative learning and experimentation. The results of this project reflect the dedication and expertise cultivated through the PSIML experience.
 
 We are grateful to PSI:ML & PFE Crew for providing the foundation and support for this project, enabling us to explore and contribute to the field of machine learning.  💕
 
